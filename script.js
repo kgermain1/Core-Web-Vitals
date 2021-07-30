@@ -5,18 +5,14 @@ function main() {
   Logger.log("Getting List of Pages...")
   var pages = getPages();
 
-  for (var i = 0; i < pages.length; i++) {
-    var url = pages[i];
+  Logger.log("Getting Speed Data for Desktop...")
+  var desktopObjects = callPageSpeed("desktop", pages);
 
-    Logger.log("Getting " + url + " Speed Data For Desktop...")
-    var desktop = callPageSpeed('desktop', url);
+  Logger.log("Getting Speed Data for Mobile...")
+  var mobileObjects = callPageSpeed("mobile", pages);
 
-    Logger.log("Getting " + url + " Speed Data For Mobile...")
-    var mobile = callPageSpeed('mobile', url);
-
-    Logger.log("Putting " + url + " data into Google Sheet...")
-    dataToSheet(desktop, mobile, url);
-  }
+  Logger.log("Putting data into Google Sheet...")
+  dataToSheet(desktopObjects, mobileObjects);
 }
 
 function getPages(){
@@ -32,26 +28,55 @@ function getPages(){
   return pages;
 }
 
-function callPageSpeed(device, url) {
-  var pageSpeedUrl = 'https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=' + url + '&key=' + pageSpeedApiKey + '&strategy=' + device;
-  var response = UrlFetchApp.fetch(pageSpeedUrl);
-  var json = response.getContentText();
-  var parsedJson = JSON.parse(json);
+function callPageSpeed(device, pages) {
 
-  var pageSpeedObject = {id: parsedJson.id, 
-  lcp: parsedJson.originLoadingExperience.metrics.LARGEST_CONTENTFUL_PAINT_MS.percentile / 1000, 
-  fid: fid = parsedJson.originLoadingExperience.metrics.FIRST_INPUT_DELAY_MS.percentile / 1000, 
-  cls: cls = parsedJson.originLoadingExperience.metrics.CUMULATIVE_LAYOUT_SHIFT_SCORE.percentile, 
-  psi: parsedJson.lighthouseResult.categories.performance.score * 100};
+  //Creates the JSON to send to URLFetchApp
+  var requests = [];  
+  
+  for (var i = 0; i < pages.length; i++) {
+    var url = 'https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=' + pages[i] + '&key=' + pageSpeedApiKey + '&strategy=' + device;
+    var requestObject = {'url': url, 'muteHttpExceptions': true, 'followRedirects':false};
+    requests.push(requestObject);
+  }
+  
+  var response = UrlFetchApp.fetchAll(requests);
+  var pageSpeedObjects = [];
 
-  return(pageSpeedObject);
+  for (var i = 0; i < response.length; i++) {
+    var json = response[i].getContentText();
+    var parsedJson = JSON.parse(json);
+
+    try{
+      var sPSI = parsedJson["lighthouseResult"]["categories"]["performance"]["score"];
+      var sTTI = parsedJson["lighthouseResult"]["audits"]["interactive"]["displayValue"].slice(0, -2);
+      var sLCP = parsedJson["lighthouseResult"]["audits"]["largest-contentful-paint"]["displayValue"].slice(0, -2);
+      var sFID = parsedJson["lighthouseResult"]["audits"]["max-potential-fid"]["displayValue"].slice(0, -2)/1000;
+      var sCLS = parsedJson["lighthouseResult"]["audits"]["cumulative-layout-shift"]["displayValue"];
+    }
+
+    catch{
+      var sLCP = '';
+      var sFID = '';
+      var sCLS = '';
+      var sPSI = '';
+      var sTTI = '';
+      }
+
+    var pageSpeedObject = {id: pages[i], lcp: sLCP, fid: sFID, cls: sCLS, psi: sPSI, tti: sTTI};
+    pageSpeedObjects.push(pageSpeedObject);
+  }
+  return(pageSpeedObjects);
 }
 
-function dataToSheet (desktop, mobile, url){
+function dataToSheet (desktopObjects, mobileObjects){
   var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = spreadsheet.getSheetByName('CWV');
 
-  sheet.appendRow([Utilities.formatDate(new Date(), 'GMT', 'yyyy-MM-dd'), url,
-                   desktop.psi, desktop.lcp, desktop.fid, desktop.cls,
-                   mobile.psi, mobile.lcp, mobile.fid, mobile.cls]);                
+  for (var i = 0; i < desktopObjects.length; i++) {
+    sheet.appendRow([Utilities.formatDate(new Date(), 'GMT', 'yyyy-MM-dd'), desktopObjects[i].id, 
+                      desktopObjects[i].tti,
+                      desktopObjects[i].psi, desktopObjects[i].lcp, desktopObjects[i].fid, desktopObjects[i].cls,
+                      mobileObjects[i].psi, mobileObjects[i].tti, mobileObjects[i].lcp, 
+                      mobileObjects[i].fid, mobileObjects[i].cls]); 
+  }               
 }
