@@ -47,7 +47,7 @@ function callPageSpeed(device, pages) {
     var parsedJson = JSON.parse(json);
 
     try{
-      var sPSI = parsedJson["lighthouseResult"]["categories"]["performance"]["score"];
+      var sPSI = parsedJson["lighthouseResult"]["categories"]["performance"]["score"]*100;
       var sTTI = parsedJson["lighthouseResult"]["audits"]["interactive"]["displayValue"].slice(0, -2);
       var sLCP = parsedJson["lighthouseResult"]["audits"]["largest-contentful-paint"]["displayValue"].slice(0, -2);
       var sFID = parsedJson["lighthouseResult"]["audits"]["max-potential-fid"]["displayValue"].slice(0, -2)/1000;
@@ -74,8 +74,8 @@ function dataToSheet (desktopObjects, mobileObjects){
 
   for (var i = 0; i < desktopObjects.length; i++) {
     sheet.appendRow([Utilities.formatDate(new Date(), 'GMT', 'yyyy-MM-dd'), desktopObjects[i].id, 
-                      desktopObjects[i].tti,
-                      desktopObjects[i].psi, desktopObjects[i].lcp, desktopObjects[i].fid, desktopObjects[i].cls,
+                      desktopObjects[i].psi, desktopObjects[i].tti, desktopObjects[i].lcp, 
+                      desktopObjects[i].fid, desktopObjects[i].cls,
                       mobileObjects[i].psi, mobileObjects[i].tti, mobileObjects[i].lcp, 
                       mobileObjects[i].fid, mobileObjects[i].cls]); 
   }               
